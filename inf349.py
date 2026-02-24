@@ -31,6 +31,31 @@ class Order(BaseModel):
     product_id = IntegerField() 
     quantity = IntegerField()
 
+def fetch_products():
+    """Récupère les produits du service distant et les stocke localement."""
+    url = "https://dimensweb.uqac.ca/~jgnault/shops/products/"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            for p in data.get('products', []):
+                # .replace() met à jour si l'ID existe déjà, sinon il l'insère [cite: 441]
+                Product.replace(
+                    id=p['id'],
+                    name=p['name'],
+                    description=p['description'],
+                    price=p['price'],
+                    in_stock=p['in_stock'],
+                    weight=p['weight'],
+                    image=p['image']
+                ).execute()
+    except Exception as e:
+        print(f"Erreur lors de la récupération des produits : {e}")
+
+# Cette fonction s'exécute au démarrage de l'application 'flask run' 
+with app.app_context():
+    fetch_products()
+
 @app.cli.command('init-db')
 def init_db():
     """Initialise la base de données SQLite et crée les tables."""
