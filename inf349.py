@@ -1,29 +1,25 @@
-from flask import Flask, jsonify
+from flask import Flask
 from models import db, Product, Order
 from services import fetch_products 
+from routes import api_bp  # Importation du Blueprint
 
 def create_app():
     app = Flask(__name__)
+    
+    # Enregistrement des routes
+    app.register_blueprint(api_bp)
 
-    # Commande obligatoire pour initialiser la DB 
     @app.cli.command('init-db')
     def init_db():
         db.connect()
         db.create_tables([Product, Order])
         print("Base de données initialisée.")
 
-    # Route GET / demandée [cite: 33, 58]
-    @app.route('/', methods=['GET'])
-    def list_products():
-        products = list(Product.select().dicts())
-        return jsonify({"products": products}), 200
-
     return app
 
 app = create_app()
 
-# Au lancement (flask run), on tente de peupler la base [cite: 440, 441]
-# On vérifie si on n'est pas en train d'exécuter une commande CLI (comme init-db)
+# Logique de peuplement au lancement [cite: 442]
 import sys
 if 'init-db' not in sys.argv:
     with app.app_context():
