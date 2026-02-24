@@ -1,64 +1,34 @@
-import click
-import requests # Pour l'appel distant (ou urllib.request de la lib standard)
-from flask import Flask, jsonify, request
-from peewee import SqliteDatabase, Model, CharField, IntegerField, FloatField, BooleanField
+from flask import Flask, jsonify
+from models import db, Product, Order
+from services import fetch_products 
 
-app = Flask(__name__)
-db = SqliteDatabase('inf349.db') # La base de données doit être un fichier local [cite: 476]
+def create_app():
+    app = Flask(__name__)
 
-class BaseModel(Model):
-    class Meta:
-        database = db
+    # Commande obligatoire pour initialiser la DB 
+    @app.cli.command('init-db')
+    def init_db():
+        db.connect()
+        db.create_tables([Product, Order])
+        print("Base de données initialisée.")
 
-class Product(BaseModel):
-    # L'identifiant numérique unique du produit [cite: 470]
-    id = IntegerField(primary_key=True)
-    name = CharField()
-    description = CharField()
-    price = IntegerField() # Le prix en cents [cite: 470]
-    in_stock = BooleanField()
-    weight = IntegerField()
-    image = CharField()
+    # Route GET / demandée [cite: 33, 58]
+    @app.route('/', methods=['GET'])
+    def list_products():
+        products = list(Product.select().dicts())
+        return jsonify({"products": products}), 200
 
-class Order(BaseModel):
-    # Structure de base pour la première remise [cite: 100-114]
-    total_price = FloatField(default=0.0)
-    total_price_tax = FloatField(default=0.0)
-    shipping_price = IntegerField(default=0)
-    email = CharField(null=True)
-    paid = BooleanField(default=False)
-    # Pour la remise 1, une commande ne reçoit qu'un seul produit [cite: 68]
-    product_id = IntegerField() 
-    quantity = IntegerField()
+    return app
 
-def fetch_products():
-    """Récupère les produits du service distant et les stocke localement."""
-    url = "https://dimensweb.uqac.ca/~jgnault/shops/products/"
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            for p in data.get('products', []):
-                # .replace() met à jour si l'ID existe déjà, sinon il l'insère [cite: 441]
-                Product.replace(
-                    id=p['id'],
-                    name=p['name'],
-                    description=p['description'],
-                    price=p['price'],
-                    in_stock=p['in_stock'],
-                    weight=p['weight'],
-                    image=p['image']
-                ).execute()
-    except Exception as e:
-        print(f"Erreur lors de la récupération des produits : {e}")
+app = create_app()
 
-# Cette fonction s'exécute au démarrage de l'application 'flask run' 
-with app.app_context():
-    fetch_products()
-
-@app.cli.command('init-db')
-def init_db():
-    """Initialise la base de données SQLite et crée les tables."""
-    db.connect()
-    db.create_tables([Product, Order]) # Crée les tables pour les modèles définis
-    print("Base de données initialisée avec succès (fichier inf349.db).")
+# Au lancement (flask run), on tente de peupler la base [cite: 440, 441]
+# On vérifie si on n'est pas en train d'exécuter une commande CLI (comme init-db)
+import sys
+if 'init-db' not in sys.argv:
+    with app.app_context():
+        try:
+            if Product.table_exists():
+                fetch_products()
+        except Exception:
+            pass
