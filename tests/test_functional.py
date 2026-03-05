@@ -12,7 +12,7 @@ def client(app):
     return app.test_client()
 
 def test_get_products(client):
-    """Vérifie que GET / retourne un code 200 et du JSON [cite: 33-35]"""
+    """Vérifie que GET / retourne un code 200 et du JSON"""
     response = client.get('/')
     assert response.status_code == 200
     assert "products" in response.json
@@ -49,7 +49,6 @@ def test_put_order_info_success(client):
     post_res = client.post('/order', json={"product": {"id": 1, "quantity": 1}})
     order_id = post_res.headers['Location'].split('/')[-1]
 
-    # [cite_start]2. Mise à jour (QC = 15%) [cite: 116]
     payload = {
         "order": {
             "email": "test@uqac.ca",
@@ -67,7 +66,6 @@ def test_put_order_info_success(client):
     assert response.json["order"]["email"] == "test@uqac.ca"
     assert response.json["order"]["shipping_information"]["province"] == "QC"
     
-    # [cite_start]Vérification du calcul de taxe (Total * 1.15) [cite: 116, 122]
     expected_taxed = round(response.json["order"]["total_price"] * 1.15, 2)
     assert response.json["order"]["total_price_tax"] == expected_taxed
 
@@ -115,7 +113,6 @@ def test_put_order_payment_declined(client, requests_mock):
     order_id = post_res.headers['Location'].split('/')[-1]
     client.put(f'/order/{order_id}', json={"order": {"email":"a@a.ca", "shipping_information": {"country":"A","address":"A","postal_code":"A","city":"A","province":"QC"}}})
 
-    # [cite_start]2. Mock de l'erreur du service distant [cite: 380]
     requests_mock.post("http://dimprojetu.uqac.ca/~jgnault/shops/pay/", 
                        json={"errors": {"credit_card": {"code": "card-declined", "name": "Déclinée"}}}, 
                        status_code=422)
@@ -238,18 +235,14 @@ def test_put_order_payment_timeout(client, requests_mock):
     assert response.json["errors"]["payment"]["code"] == "timeout"
     
 def test_shipping_price_calculation(client):
-    # [cite_start]Produit ID 1 fait 400g [cite: 44]
-    # [cite_start]Quantité 1 (400g) -> 5$ (500 cents) [cite: 126]
     res1 = client.post('/order', json={"product": {"id": 1, "quantity": 1}})
     id1 = res1.headers['Location'].split('/')[-1]
     assert client.get(f'/order/{id1}').json["order"]["shipping_price"] == 500
 
-    # [cite_start]Quantité 2 (800g) -> 10$ (1000 cents) [cite: 127]
     res2 = client.post('/order', json={"product": {"id": 1, "quantity": 2}})
     id2 = res2.headers['Location'].split('/')[-1]
     assert client.get(f'/order/{id2}').json["order"]["shipping_price"] == 1000
 
-    # [cite_start]Quantité 6 (2400g) -> 25$ (2500 cents) [cite: 128]
     res3 = client.post('/order', json={"product": {"id": 1, "quantity": 6}})
     id3 = res3.headers['Location'].split('/')[-1]
     assert client.get(f'/order/{id3}').json["order"]["shipping_price"] == 2500
